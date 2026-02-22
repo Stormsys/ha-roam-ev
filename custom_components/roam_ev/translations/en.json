@@ -61,6 +61,12 @@
       },
       "session_status": {
         "name": "Session Status"
+      },
+      "session_duration": {
+        "name": "Session Duration"
+      },
+      "charger_name": {
+        "name": "Charger Name"
       }
     }
   }

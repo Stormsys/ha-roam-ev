@@ -14,7 +14,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_EMAIL, UnitOfEnergy, UnitOfPower
+from homeassistant.const import CONF_EMAIL, UnitOfEnergy, UnitOfPower, UnitOfTime
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -31,7 +31,8 @@ _LOGGER = logging.getLogger(__name__)
 class RoamEVSensorEntityDescription(SensorEntityDescription):
     """Describes ROAM EV sensor entity."""
 
-    value_fn: Callable[[SessionData], Any]
+    value_fn: Callable[[SessionData], Any] = lambda data: None
+    coordinator_value_fn: Callable[[SessionData, RoamEVCoordinator], Any] | None = None
     available_fn: Callable[[SessionData], bool] = lambda data: data.is_active
 
 
@@ -79,6 +80,21 @@ SENSOR_DESCRIPTIONS: tuple[RoamEVSensorEntityDescription, ...] = (
         value_fn=lambda data: _status_to_string(data.status),
         available_fn=lambda data: True,  # Always available
     ),
+    RoamEVSensorEntityDescription(
+        key="session_duration",
+        translation_key="session_duration",
+        icon="mdi:timer-outline",
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda data: _calc_duration_seconds(data.started_charging_at),
+    ),
+    RoamEVSensorEntityDescription(
+        key="charger_name",
+        translation_key="charger_name",
+        icon="mdi:ev-station",
+        coordinator_value_fn=lambda data, coord: _get_charger_name(data, coord),
+    ),
 )
 
 
@@ -91,6 +107,40 @@ def _parse_timestamp(timestamp_str: str | None) -> datetime | None:
         return datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
     except (ValueError, AttributeError):
         return None
+
+
+def _calc_duration_seconds(started_at: str | None) -> int | None:
+    """Calculate session duration in seconds from start timestamp."""
+    if not started_at:
+        return None
+    try:
+        start = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+        now = datetime.now(tz=start.tzinfo)
+        delta = now - start
+        return max(0, int(delta.total_seconds()))
+    except (ValueError, AttributeError):
+        return None
+
+
+def _get_charger_name(data: SessionData, coordinator: RoamEVCoordinator) -> str | None:
+    """Get charger name from cached charger details."""
+    charger_id = data.charger_id or data.evse_id
+    if not charger_id:
+        return None
+    info = coordinator.get_charger_info(charger_id)
+    if not info:
+        return None
+    # Try common field names from the charger API response
+    for key in ("name", "chargePointName", "siteName", "locationName"):
+        if key in info and info[key]:
+            return str(info[key])
+    # Try nested location
+    location = info.get("location")
+    if isinstance(location, dict):
+        for key in ("name", "siteName"):
+            if key in location and location[key]:
+                return str(location[key])
+    return charger_id
 
 
 def _status_to_string(status: int | None) -> str:
@@ -167,5 +217,9 @@ class RoamEVSensor(CoordinatorEntity[RoamEVCoordinator], SensorEntity):
         """Return the state of the sensor."""
         if self.coordinator.data is None:
             return None
+        if self.entity_description.coordinator_value_fn is not None:
+            return self.entity_description.coordinator_value_fn(
+                self.coordinator.data, self.coordinator
+            )
         return self.entity_description.value_fn(self.coordinator.data)
 
