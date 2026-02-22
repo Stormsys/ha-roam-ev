@@ -39,6 +39,8 @@ class RoamEVCoordinator(DataUpdateCoordinator[SessionData]):
         self._entry = entry
         self._charger_cache: dict[str, Any] = {}
         self._last_saved_refresh_token: str | None = entry.data.get(CONF_REFRESH_TOKEN)
+        self._was_active: bool = False
+        self.last_session_cost: float | None = None
 
     async def _async_update_data(self) -> SessionData:
         """Fetch data from API."""
@@ -52,6 +54,17 @@ class RoamEVCoordinator(DataUpdateCoordinator[SessionData]):
                     charger_details = await self.api.get_charger_details(charger_id)
                     if charger_details:
                         self._charger_cache[charger_id] = charger_details
+
+            # Track session transitions to capture last session cost
+            if self._was_active and not session_data.is_active:
+                # Session just ended — save the last known cost
+                if self.data is not None and self.data.session_cost is not None:
+                    self.last_session_cost = self.data.session_cost
+            elif session_data.is_active and session_data.session_cost is not None:
+                # Update last_session_cost during active session too,
+                # so it's available even if we miss the transition
+                self.last_session_cost = session_data.session_cost
+            self._was_active = session_data.is_active
 
             # Persist tokens if they changed after a refresh/re-auth
             self._persist_tokens_if_changed()
