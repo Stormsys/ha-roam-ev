@@ -15,7 +15,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_EMAIL, UnitOfEnergy, UnitOfPower, UnitOfTime
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -60,6 +60,13 @@ SENSOR_DESCRIPTIONS: tuple[RoamEVSensorEntityDescription, ...] = (
         value_fn=lambda data: data.charger_id or data.evse_id,
     ),
     RoamEVSensorEntityDescription(
+        key="evse_id",
+        translation_key="evse_id",
+        icon="mdi:ev-plug-type2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: data.evse_id,
+    ),
+    RoamEVSensorEntityDescription(
         key="transaction_id",
         translation_key="transaction_id",
         icon="mdi:identifier",
@@ -81,21 +88,6 @@ SENSOR_DESCRIPTIONS: tuple[RoamEVSensorEntityDescription, ...] = (
         available_fn=lambda data: True,  # Always available
     ),
     RoamEVSensorEntityDescription(
-        key="session_duration",
-        translation_key="session_duration",
-        icon="mdi:timer-outline",
-        native_unit_of_measurement=UnitOfTime.SECONDS,
-        device_class=SensorDeviceClass.DURATION,
-        state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda data: _calc_duration_seconds(data.started_charging_at),
-    ),
-    RoamEVSensorEntityDescription(
-        key="charger_name",
-        translation_key="charger_name",
-        icon="mdi:ev-station",
-        coordinator_value_fn=lambda data, coord: _get_charger_name(data, coord),
-    ),
-    RoamEVSensorEntityDescription(
         key="session_cost",
         translation_key="session_cost",
         icon="mdi:currency-gbp",
@@ -104,6 +96,79 @@ SENSOR_DESCRIPTIONS: tuple[RoamEVSensorEntityDescription, ...] = (
         native_unit_of_measurement="GBP",
         suggested_display_precision=2,
         value_fn=lambda data: data.session_cost,
+    ),
+    RoamEVSensorEntityDescription(
+        key="qr_code",
+        translation_key="qr_code",
+        icon="mdi:qrcode",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: data.qr_code,
+    ),
+    RoamEVSensorEntityDescription(
+        key="manual_input_code",
+        translation_key="manual_input_code",
+        icon="mdi:form-textbox-password",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: data.manual_input_code,
+    ),
+    RoamEVSensorEntityDescription(
+        key="tariff_rate",
+        translation_key="tariff_rate",
+        icon="mdi:cash",
+        native_unit_of_measurement="GBP/kWh",
+        suggested_display_precision=2,
+        value_fn=lambda data: data.numeric_rate,
+    ),
+    RoamEVSensorEntityDescription(
+        key="session_updated_at",
+        translation_key="session_updated_at",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: _parse_timestamp(data.updated_at),
+    ),
+    RoamEVSensorEntityDescription(
+        key="energy_updated_at",
+        translation_key="energy_updated_at",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: _parse_timestamp(data.energy_updated_at),
+    ),
+    RoamEVSensorEntityDescription(
+        key="charger_name",
+        translation_key="charger_name",
+        icon="mdi:ev-station",
+        value_fn=lambda data: data.charger_name or data.charger_id or data.evse_id,
+    ),
+    RoamEVSensorEntityDescription(
+        key="charger_location",
+        translation_key="charger_location",
+        icon="mdi:map-marker",
+        value_fn=lambda data: data.charger_location,
+    ),
+    RoamEVSensorEntityDescription(
+        key="connector_type",
+        translation_key="connector_type",
+        icon="mdi:ev-plug-type2",
+        value_fn=lambda data: data.connector_type,
+    ),
+    RoamEVSensorEntityDescription(
+        key="max_power",
+        translation_key="max_power",
+        icon="mdi:flash",
+        native_unit_of_measurement=UnitOfPower.KILO_WATT,
+        device_class=SensorDeviceClass.POWER,
+        value_fn=lambda data: data.max_power,
+    ),
+    RoamEVSensorEntityDescription(
+        key="session_duration",
+        translation_key="session_duration",
+        icon="mdi:timer-outline",
+        device_class=SensorDeviceClass.DURATION,
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        suggested_display_precision=0,
+        value_fn=lambda data: _session_duration_seconds(data.started_charging_at),
     ),
 )
 
@@ -119,38 +184,18 @@ def _parse_timestamp(timestamp_str: str | None) -> datetime | None:
         return None
 
 
-def _calc_duration_seconds(started_at: str | None) -> int | None:
+def _session_duration_seconds(started_at: str | None) -> int | None:
     """Calculate session duration in seconds from start timestamp."""
     if not started_at:
         return None
-    try:
-        start = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
-        now = datetime.now(tz=start.tzinfo)
-        delta = now - start
-        return max(0, int(delta.total_seconds()))
-    except (ValueError, AttributeError):
+    start = _parse_timestamp(started_at)
+    if start is None:
         return None
+    from datetime import timezone
 
-
-def _get_charger_name(data: SessionData, coordinator: RoamEVCoordinator) -> str | None:
-    """Get charger name from cached charger details."""
-    charger_id = data.charger_id or data.evse_id
-    if not charger_id:
-        return None
-    info = coordinator.get_charger_info(charger_id)
-    if not info:
-        return None
-    # Try common field names from the charger API response
-    for key in ("name", "chargePointName", "siteName", "locationName"):
-        if key in info and info[key]:
-            return str(info[key])
-    # Try nested location
-    location = info.get("location")
-    if isinstance(location, dict):
-        for key in ("name", "siteName"):
-            if key in location and location[key]:
-                return str(location[key])
-    return charger_id
+    now = datetime.now(timezone.utc)
+    delta = now - start
+    return max(0, int(delta.total_seconds()))
 
 
 def _status_to_string(status: int | None) -> str:
