@@ -86,9 +86,6 @@
       "energy_updated_at": {
         "name": "Energy Last Updated"
       },
-      "charger_name": {
-        "name": "Charger Name"
-      },
       "charger_location": {
         "name": "Charger Location"
       },
@@ -97,9 +94,6 @@
       },
       "max_power": {
         "name": "Charger Max Power"
-      },
-      "session_duration": {
-        "name": "Session Duration"
       }
     }
   }
