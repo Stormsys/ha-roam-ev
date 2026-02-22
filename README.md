@@ -9,9 +9,11 @@ A custom Home Assistant integration for monitoring your [ROAM EV](https://www.ev
 - **Charging Session Detection** — binary sensor that turns on when a session is active
 - **Live Power Monitoring** — current charging power in watts
 - **Energy Tracking** — total energy delivered per session in watt-hours
+- **Session Cost & Tariff** — estimated cost, tariff rate, and last session cost
 - **Session Status** — OCPP status (available, preparing, charging, suspended, finishing, etc.)
-- **Charger & Transaction IDs** — identify which charger you're using
-- **Session Start Time** — timestamp of when charging began
+- **Charger Details** — charger name, location, connector type, and max power
+- **Charger & Transaction IDs** — charger ID, EVSE ID, QR code, and manual input code
+- **Session Timing** — start time, duration, and last-updated timestamps
 - **Configurable Polling** — update interval from 10 to 300 seconds (default 30s)
 
 ## Installation
@@ -44,9 +46,22 @@ A custom Home Assistant integration for monitoring your [ROAM EV](https://www.ev
 | Charging Power | Sensor | Current power draw (W) |
 | Energy Delivered | Sensor | Total energy this session (Wh) |
 | Session Status | Sensor | OCPP status string (always available) |
-| Charger ID | Sensor | Active charger/EVSE identifier |
+| Session Cost | Sensor | Estimated cost of current session (GBP) |
+| Last Session Cost | Sensor | Cost of the most recent completed session (GBP) |
+| Tariff Rate | Sensor | Applied rate per kWh (GBP/kWh) |
+| Session Duration | Sensor | Elapsed time since session started |
+| Charger ID | Sensor | Active charger identifier |
+| EVSE ID | Sensor | EVSE identifier (diagnostic) |
 | Transaction ID | Sensor | Transaction identifier (diagnostic) |
+| Charger Name | Sensor | Name of the active charger |
+| Charger Location | Sensor | Location/address of the charger |
+| Connector Type | Sensor | Connector type (e.g. Type 2) |
+| Charger Max Power | Sensor | Maximum power rating of the charger (kW) |
 | Session Start Time | Sensor | Timestamp when session started |
+| Session Last Updated | Sensor | Timestamp of last session update (diagnostic) |
+| Energy Last Updated | Sensor | Timestamp of last energy reading (diagnostic) |
+| QR Code | Sensor | Charger QR code value (diagnostic) |
+| Manual Input Code | Sensor | Charger manual input code (diagnostic) |
 
 Most sensors are only available while a charging session is active. Session Status is always available.
 

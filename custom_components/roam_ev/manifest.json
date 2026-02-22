@@ -7,7 +7,7 @@
   "documentation": "https://github.com/Stormsys/ha-roam-ev",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/Stormsys/ha-roam-ev/issues",
-  "requirements": ["aiohttp>=3.8.0"],
+  "requirements": [],
   "version": "0.1.0a1"
 }
 

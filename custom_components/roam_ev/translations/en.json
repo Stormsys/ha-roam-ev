@@ -53,6 +53,9 @@
       "charger_id": {
         "name": "Charger ID"
       },
+      "evse_id": {
+        "name": "EVSE ID"
+      },
       "transaction_id": {
         "name": "Transaction ID"
       },
@@ -62,20 +65,11 @@
       "session_status": {
         "name": "Session Status"
       },
-      "session_duration": {
-        "name": "Session Duration"
-      },
-      "charger_name": {
-        "name": "Charger Name"
-      },
       "session_cost": {
         "name": "Session Cost"
       },
       "last_session_cost": {
         "name": "Last Session Cost"
-      },
-      "evse_id": {
-        "name": "EVSE ID"
       },
       "qr_code": {
         "name": "QR Code"
@@ -110,4 +104,3 @@
     }
   }
 }
-
