@@ -14,7 +14,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_EMAIL, UnitOfEnergy, UnitOfPower
+from homeassistant.const import CONF_EMAIL, UnitOfEnergy, UnitOfPower, UnitOfTime
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -89,6 +89,86 @@ SENSOR_DESCRIPTIONS: tuple[RoamEVSensorEntityDescription, ...] = (
         suggested_display_precision=2,
         value_fn=lambda data: data.session_cost,
     ),
+    RoamEVSensorEntityDescription(
+        key="evse_id",
+        translation_key="evse_id",
+        icon="mdi:ev-plug-type2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: data.evse_id,
+    ),
+    RoamEVSensorEntityDescription(
+        key="qr_code",
+        translation_key="qr_code",
+        icon="mdi:qrcode",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: data.qr_code,
+    ),
+    RoamEVSensorEntityDescription(
+        key="manual_input_code",
+        translation_key="manual_input_code",
+        icon="mdi:form-textbox-password",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: data.manual_input_code,
+    ),
+    RoamEVSensorEntityDescription(
+        key="tariff_rate",
+        translation_key="tariff_rate",
+        icon="mdi:cash",
+        native_unit_of_measurement="GBP/kWh",
+        suggested_display_precision=2,
+        value_fn=lambda data: data.numeric_rate,
+    ),
+    RoamEVSensorEntityDescription(
+        key="session_updated_at",
+        translation_key="session_updated_at",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: _parse_timestamp(data.updated_at),
+    ),
+    RoamEVSensorEntityDescription(
+        key="energy_updated_at",
+        translation_key="energy_updated_at",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: _parse_timestamp(data.energy_updated_at),
+    ),
+    RoamEVSensorEntityDescription(
+        key="charger_name",
+        translation_key="charger_name",
+        icon="mdi:ev-station",
+        value_fn=lambda data: data.charger_name or data.charger_id or data.evse_id,
+    ),
+    RoamEVSensorEntityDescription(
+        key="charger_location",
+        translation_key="charger_location",
+        icon="mdi:map-marker",
+        value_fn=lambda data: data.charger_location,
+    ),
+    RoamEVSensorEntityDescription(
+        key="connector_type",
+        translation_key="connector_type",
+        icon="mdi:ev-plug-type2",
+        value_fn=lambda data: data.connector_type,
+    ),
+    RoamEVSensorEntityDescription(
+        key="max_power",
+        translation_key="max_power",
+        icon="mdi:flash",
+        native_unit_of_measurement=UnitOfPower.KILO_WATT,
+        device_class=SensorDeviceClass.POWER,
+        value_fn=lambda data: data.max_power,
+    ),
+    RoamEVSensorEntityDescription(
+        key="session_duration",
+        translation_key="session_duration",
+        icon="mdi:timer-outline",
+        device_class=SensorDeviceClass.DURATION,
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        suggested_display_precision=0,
+        value_fn=lambda data: _session_duration_seconds(data.started_charging_at),
+    ),
 )
 
 
@@ -101,6 +181,20 @@ def _parse_timestamp(timestamp_str: str | None) -> datetime | None:
         return datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
     except (ValueError, AttributeError):
         return None
+
+
+def _session_duration_seconds(started_at: str | None) -> int | None:
+    """Calculate session duration in seconds from start timestamp."""
+    if not started_at:
+        return None
+    start = _parse_timestamp(started_at)
+    if start is None:
+        return None
+    from datetime import timezone
+
+    now = datetime.now(timezone.utc)
+    delta = now - start
+    return max(0, int(delta.total_seconds()))
 
 
 def _status_to_string(status: int | None) -> str:

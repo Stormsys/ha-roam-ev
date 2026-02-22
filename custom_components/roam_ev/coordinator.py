@@ -55,6 +55,19 @@ class RoamEVCoordinator(DataUpdateCoordinator[SessionData]):
                     if charger_details:
                         self._charger_cache[charger_id] = charger_details
 
+                # Populate charger detail fields on session data
+                if charger_id and charger_id in self._charger_cache:
+                    details = self._charger_cache[charger_id]
+                    session_data.charger_name = details.get("name") or details.get("chargerName")
+                    session_data.charger_location = details.get("location") or details.get("address")
+                    session_data.connector_type = details.get("connectorType") or details.get("connector_type")
+                    raw_power = details.get("maxPower") or details.get("max_power") or details.get("maxKw")
+                    if raw_power is not None:
+                        try:
+                            session_data.max_power = float(raw_power)
+                        except (ValueError, TypeError):
+                            pass
+
             # Track session transitions to capture last session cost
             if self._was_active and not session_data.is_active:
                 # Session just ended — save the last known cost

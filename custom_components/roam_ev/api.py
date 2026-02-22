@@ -37,6 +37,11 @@ class SessionData:
     power: int = 0
     energy: int = 0
     energy_updated_at: str | None = None
+    # Charger detail fields (populated by coordinator from cached charger data)
+    charger_name: str | None = None
+    charger_location: str | None = None
+    connector_type: str | None = None
+    max_power: float | None = None
 
     @property
     def is_active(self) -> bool:

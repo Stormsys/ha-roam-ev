@@ -52,6 +52,39 @@
       },
       "last_session_cost": {
         "name": "Last Session Cost"
+      },
+      "evse_id": {
+        "name": "EVSE ID"
+      },
+      "qr_code": {
+        "name": "QR Code"
+      },
+      "manual_input_code": {
+        "name": "Manual Input Code"
+      },
+      "tariff_rate": {
+        "name": "Tariff Rate"
+      },
+      "session_updated_at": {
+        "name": "Session Last Updated"
+      },
+      "energy_updated_at": {
+        "name": "Energy Last Updated"
+      },
+      "charger_name": {
+        "name": "Charger Name"
+      },
+      "charger_location": {
+        "name": "Charger Location"
+      },
+      "connector_type": {
+        "name": "Connector Type"
+      },
+      "max_power": {
+        "name": "Charger Max Power"
+      },
+      "session_duration": {
+        "name": "Session Duration"
       }
     },
     "binary_sensor": {
