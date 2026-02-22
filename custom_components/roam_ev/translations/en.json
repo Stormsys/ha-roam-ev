@@ -67,6 +67,12 @@
       },
       "charger_name": {
         "name": "Charger Name"
+      },
+      "session_cost": {
+        "name": "Session Cost"
+      },
+      "last_session_cost": {
+        "name": "Last Session Cost"
       }
     }
   }

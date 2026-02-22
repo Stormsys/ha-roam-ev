@@ -48,6 +48,47 @@ class SessionData:
             or self.transaction_id is not None
         )
 
+    @property
+    def numeric_rate(self) -> float | None:
+        """Extract a numeric rate (per kWh) from rate_applied.
+
+        rate_applied may be a number, a string, or a Firestore map
+        containing a nested rate/price field.
+        """
+        if self.rate_applied is None:
+            return None
+        if isinstance(self.rate_applied, (int, float)):
+            return float(self.rate_applied)
+        if isinstance(self.rate_applied, str):
+            try:
+                return float(self.rate_applied)
+            except ValueError:
+                return None
+        if isinstance(self.rate_applied, dict):
+            # Firestore map — look for common field names
+            for key in ("rate", "price", "pricePerKwh", "ratePerKwh", "amount"):
+                val = self.rate_applied.get(key)
+                if val is not None:
+                    # Values may still be wrapped in Firestore type objects
+                    if isinstance(val, dict):
+                        for type_key in ("doubleValue", "integerValue", "stringValue"):
+                            if type_key in val:
+                                try:
+                                    return float(val[type_key])
+                                except (ValueError, TypeError):
+                                    continue
+                    elif isinstance(val, (int, float)):
+                        return float(val)
+        return None
+
+    @property
+    def session_cost(self) -> float | None:
+        """Estimate the current session cost (energy_Wh / 1000 * rate_per_kWh)."""
+        rate = self.numeric_rate
+        if rate is None or not self.energy:
+            return None
+        return round(self.energy / 1000.0 * rate, 2)
+
 
 @dataclass
 class ChargerData:

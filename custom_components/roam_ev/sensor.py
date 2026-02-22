@@ -95,6 +95,16 @@ SENSOR_DESCRIPTIONS: tuple[RoamEVSensorEntityDescription, ...] = (
         icon="mdi:ev-station",
         coordinator_value_fn=lambda data, coord: _get_charger_name(data, coord),
     ),
+    RoamEVSensorEntityDescription(
+        key="session_cost",
+        translation_key="session_cost",
+        icon="mdi:currency-gbp",
+        device_class=SensorDeviceClass.MONETARY,
+        state_class=SensorStateClass.TOTAL,
+        native_unit_of_measurement="GBP",
+        suggested_display_precision=2,
+        value_fn=lambda data: data.session_cost,
+    ),
 )
 
 
@@ -169,10 +179,11 @@ async def async_setup_entry(
     """Set up ROAM EV sensors."""
     coordinator: RoamEVCoordinator = hass.data[DOMAIN][entry.entry_id]
 
-    entities = [
+    entities: list[SensorEntity] = [
         RoamEVSensor(coordinator, entry, description)
         for description in SENSOR_DESCRIPTIONS
     ]
+    entities.append(RoamEVLastSessionCostSensor(coordinator, entry))
 
     async_add_entities(entities)
 
@@ -222,4 +233,40 @@ class RoamEVSensor(CoordinatorEntity[RoamEVCoordinator], SensorEntity):
                 self.coordinator.data, self.coordinator
             )
         return self.entity_description.value_fn(self.coordinator.data)
+
+
+class RoamEVLastSessionCostSensor(CoordinatorEntity[RoamEVCoordinator], SensorEntity):
+    """Sensor for the cost of the last completed charging session."""
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "last_session_cost"
+    _attr_icon = "mdi:currency-gbp"
+    _attr_device_class = SensorDeviceClass.MONETARY
+    _attr_native_unit_of_measurement = "GBP"
+    _attr_suggested_display_precision = 2
+
+    def __init__(
+        self,
+        coordinator: RoamEVCoordinator,
+        entry: ConfigEntry,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator)
+        self._entry = entry
+        self._attr_unique_id = f"{entry.entry_id}_last_session_cost"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return device information."""
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._entry.entry_id)},
+            name=f"ROAM EV ({self._entry.data.get(CONF_EMAIL, 'Account')})",
+            manufacturer="ROAM EV",
+            model="EV Charging Account",
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the cost of the last session."""
+        return self.coordinator.last_session_cost
 

@@ -27,6 +27,39 @@
       "reauth_successful": "Reauthentication successful."
     }
   },
+  "entity": {
+    "sensor": {
+      "power": {
+        "name": "Charging Power"
+      },
+      "energy": {
+        "name": "Energy Delivered"
+      },
+      "charger_id": {
+        "name": "Charger ID"
+      },
+      "transaction_id": {
+        "name": "Transaction ID"
+      },
+      "session_start": {
+        "name": "Session Start Time"
+      },
+      "session_status": {
+        "name": "Session Status"
+      },
+      "session_cost": {
+        "name": "Session Cost"
+      },
+      "last_session_cost": {
+        "name": "Last Session Cost"
+      }
+    },
+    "binary_sensor": {
+      "charging_session": {
+        "name": "Charging Session"
+      }
+    }
+  },
   "options": {
     "step": {
       "init": {
