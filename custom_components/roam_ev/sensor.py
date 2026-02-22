@@ -94,20 +94,21 @@ def _parse_timestamp(timestamp_str: str | None) -> datetime | None:
 
 
 def _status_to_string(status: int | None) -> str:
-    """Convert status code to human-readable string."""
-    if status is None or status == 0:
-        return "idle"
-    if status == 1:
-        return "preparing"
-    if status == 2:
-        return "charging"
-    if status == 3:
-        return "finishing"
-    if status == 4:
-        return "completed"
-    if status == 5:
-        return "error"
-    return f"unknown ({status})"
+    """Convert OCPP status code to human-readable string."""
+    STATUS_MAP = {
+        0: "available",
+        1: "preparing",
+        2: "charging",
+        3: "suspended_evse",
+        4: "suspended_ev",
+        5: "finishing",
+        6: "reserved",
+        7: "unavailable",
+        8: "faulted",
+    }
+    if status is None:
+        return "unknown"
+    return STATUS_MAP.get(status, f"unknown ({status})")
 
 
 async def async_setup_entry(
