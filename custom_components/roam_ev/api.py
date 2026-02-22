@@ -1,7 +1,6 @@
 """ROAM EV Charging API client."""
 from __future__ import annotations
 
-import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -108,13 +107,22 @@ class RoamEVApi:
         id_token: str,
         refresh_token: str,
         user_id: str,
-        expires_in: int = 3600,
+        expires_in: int = 0,
     ) -> None:
-        """Set tokens from stored values."""
+        """Set tokens from stored values.
+
+        When restoring tokens from storage, expires_in should be 0 (default)
+        to force a refresh on the next API call, since we don't know when
+        the token was originally issued.
+        """
         self._id_token = id_token
         self._refresh_token = refresh_token
         self._user_id = user_id
-        self._token_expiry = datetime.now() + timedelta(seconds=expires_in)
+        if expires_in > 0:
+            self._token_expiry = datetime.now() + timedelta(seconds=expires_in)
+        else:
+            # Force refresh on next use
+            self._token_expiry = datetime.now()
 
     async def authenticate(self) -> dict[str, Any]:
         """Authenticate with Firebase using email/password."""
@@ -188,11 +196,20 @@ class RoamEVApi:
                 await self.authenticate()
             else:
                 raise RoamEVAuthError("Not authenticated")
+            return
 
         # Refresh if token expires in less than 5 minutes
         if self._token_expiry and datetime.now() > self._token_expiry - timedelta(minutes=5):
             _LOGGER.debug("Token expiring soon, refreshing...")
-            await self.refresh_auth_token()
+            try:
+                await self.refresh_auth_token()
+            except RoamEVAuthError:
+                # Refresh token may be invalid, fall back to full re-authentication
+                if self._email and self._password:
+                    _LOGGER.debug("Token refresh failed, attempting full re-authentication")
+                    await self.authenticate()
+                else:
+                    raise
 
     def _parse_firestore_value(self, field: dict | None) -> Any:
         """Parse a Firestore field value."""
@@ -214,8 +231,28 @@ class RoamEVApi:
             return None
         return None
 
+    async def _reauthenticate(self) -> None:
+        """Force re-authentication by refreshing token or doing full login."""
+        self._token_expiry = None
+        self._id_token = None
+        try:
+            if self._refresh_token:
+                await self.refresh_auth_token()
+                return
+        except RoamEVAuthError:
+            _LOGGER.debug("Refresh failed during reauthentication, trying full login")
+
+        if self._email and self._password:
+            await self.authenticate()
+        else:
+            raise RoamEVAuthError("Cannot re-authenticate: no credentials available")
+
     async def get_user_data(self) -> dict[str, Any]:
         """Get user document from Firestore."""
+        return await self._get_user_data_with_retry()
+
+    async def _get_user_data_with_retry(self, retried: bool = False) -> dict[str, Any]:
+        """Get user document from Firestore, retrying once on auth failure."""
         await self._ensure_valid_token()
 
         url = FIRESTORE_URL.format(project=FIRESTORE_PROJECT_ID, user_id=self._user_id)
@@ -226,8 +263,15 @@ class RoamEVApi:
 
         try:
             async with self._session.get(url, headers=headers) as response:
+                if response.status in (401, 403) and not retried:
+                    _LOGGER.debug("Auth rejected by Firestore (HTTP %s), re-authenticating", response.status)
+                    await self._reauthenticate()
+                    return await self._get_user_data_with_retry(retried=True)
+
                 if response.status != 200:
                     text = await response.text()
+                    if response.status in (401, 403):
+                        raise RoamEVAuthError(f"Authentication failed: {response.status}")
                     _LOGGER.error("Failed to get user data: %s", text)
                     raise RoamEVApiError(f"Failed to get user data: {response.status}")
 
@@ -274,6 +318,12 @@ class RoamEVApi:
 
     async def get_charger_details(self, charger_id: str) -> dict[str, Any]:
         """Get charger details from API."""
+        return await self._get_charger_details_with_retry(charger_id)
+
+    async def _get_charger_details_with_retry(
+        self, charger_id: str, retried: bool = False
+    ) -> dict[str, Any]:
+        """Get charger details from API, retrying once on auth failure."""
         await self._ensure_valid_token()
 
         url = CHARGER_URL.format(base=API_BASE_URL, charger_id=charger_id)
@@ -284,6 +334,11 @@ class RoamEVApi:
 
         try:
             async with self._session.get(url, headers=headers) as response:
+                if response.status in (401, 403) and not retried:
+                    _LOGGER.debug("Auth rejected by charger API (HTTP %s), re-authenticating", response.status)
+                    await self._reauthenticate()
+                    return await self._get_charger_details_with_retry(charger_id, retried=True)
+
                 if response.status != 200:
                     text = await response.text()
                     _LOGGER.warning("Failed to get charger details: %s", text)

@@ -17,6 +17,7 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
 )
+
 from .coordinator import RoamEVCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -46,7 +47,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
 
     # Create coordinator
-    coordinator = RoamEVCoordinator(hass, api)
+    coordinator = RoamEVCoordinator(hass, api, entry)
 
     # Update interval from options
     scan_interval = entry.options.get("scan_interval", DEFAULT_SCAN_INTERVAL)
@@ -54,18 +55,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Fetch initial data
     await coordinator.async_config_entry_first_refresh()
-
-    # Update stored tokens if they changed
-    if api.refresh_token and api.refresh_token != entry.data.get(CONF_REFRESH_TOKEN):
-        hass.config_entries.async_update_entry(
-            entry,
-            data={
-                **entry.data,
-                CONF_REFRESH_TOKEN: api.refresh_token,
-                CONF_ID_TOKEN: api.id_token,
-                CONF_USER_ID: api.user_id,
-            },
-        )
 
     hass.data[DOMAIN][entry.entry_id] = coordinator
 

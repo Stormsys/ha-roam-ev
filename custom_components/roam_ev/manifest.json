@@ -1,13 +1,13 @@
 {
   "domain": "roam_ev",
   "name": "ROAM EV Charging",
-  "codeowners": [],
+  "codeowners": ["@Stormsys"],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/your-repo/ha-roam-ev",
+  "documentation": "https://github.com/Stormsys/ha-roam-ev",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/your-repo/ha-roam-ev/issues",
+  "issue_tracker": "https://github.com/Stormsys/ha-roam-ev/issues",
   "requirements": ["aiohttp>=3.8.0"],
-  "version": "1.0.0"
+  "version": "0.1.0a1"
 }
 

@@ -4,12 +4,20 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 .mypy_cache/
+dist/
 
 # Home Assistant / local dev
 .storage/
+config/
 
 # Environments
 .env
 .env.*
 venv/
 .venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

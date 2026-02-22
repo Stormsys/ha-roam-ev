@@ -5,12 +5,19 @@ import logging
 from datetime import timedelta
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.exceptions import ConfigEntryAuthFailed
 
 from .api import RoamEVApi, RoamEVApiError, RoamEVAuthError, SessionData
-from .const import DEFAULT_SCAN_INTERVAL, DOMAIN
+from .const import (
+    CONF_ID_TOKEN,
+    CONF_REFRESH_TOKEN,
+    CONF_USER_ID,
+    DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -18,7 +25,9 @@ _LOGGER = logging.getLogger(__name__)
 class RoamEVCoordinator(DataUpdateCoordinator[SessionData]):
     """Coordinator for ROAM EV data updates."""
 
-    def __init__(self, hass: HomeAssistant, api: RoamEVApi) -> None:
+    def __init__(
+        self, hass: HomeAssistant, api: RoamEVApi, entry: ConfigEntry
+    ) -> None:
         """Initialize the coordinator."""
         super().__init__(
             hass,
@@ -27,7 +36,9 @@ class RoamEVCoordinator(DataUpdateCoordinator[SessionData]):
             update_interval=timedelta(seconds=DEFAULT_SCAN_INTERVAL),
         )
         self.api = api
+        self._entry = entry
         self._charger_cache: dict[str, Any] = {}
+        self._last_saved_refresh_token: str | None = entry.data.get(CONF_REFRESH_TOKEN)
 
     async def _async_update_data(self) -> SessionData:
         """Fetch data from API."""
@@ -42,6 +53,9 @@ class RoamEVCoordinator(DataUpdateCoordinator[SessionData]):
                     if charger_details:
                         self._charger_cache[charger_id] = charger_details
 
+            # Persist tokens if they changed after a refresh/re-auth
+            self._persist_tokens_if_changed()
+
             return session_data
 
         except RoamEVAuthError as err:
@@ -50,6 +64,24 @@ class RoamEVCoordinator(DataUpdateCoordinator[SessionData]):
 
         except RoamEVApiError as err:
             raise UpdateFailed(f"Error communicating with API: {err}") from err
+
+    def _persist_tokens_if_changed(self) -> None:
+        """Save updated tokens to config entry if they changed."""
+        if (
+            self.api.refresh_token
+            and self.api.refresh_token != self._last_saved_refresh_token
+        ):
+            _LOGGER.debug("Persisting updated tokens to config entry")
+            self._last_saved_refresh_token = self.api.refresh_token
+            self.hass.config_entries.async_update_entry(
+                self._entry,
+                data={
+                    **self._entry.data,
+                    CONF_REFRESH_TOKEN: self.api.refresh_token,
+                    CONF_ID_TOKEN: self.api.id_token,
+                    CONF_USER_ID: self.api.user_id,
+                },
+            )
 
     def get_charger_info(self, charger_id: str) -> dict[str, Any] | None:
         """Get cached charger information."""
